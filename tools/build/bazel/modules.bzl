@@ -86,6 +86,7 @@ ONOS_DRIVERS = [
     "//drivers/cisco/netconf:onos-drivers-cisco-netconf-oar",
     "//drivers/cisco/rest:onos-drivers-cisco-rest-oar",
     "//drivers/corsa:onos-drivers-corsa-oar",
+    "//drivers/czechlight:onos-drivers-czechlight-oar",
     "//drivers/fujitsu:onos-drivers-fujitsu-oar",
     "//drivers/lumentum:onos-drivers-lumentum-oar",
     "//drivers/netconf:onos-drivers-netconf-oar",
