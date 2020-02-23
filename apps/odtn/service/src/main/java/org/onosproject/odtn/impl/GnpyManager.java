@@ -24,7 +24,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.google.common.annotations.Beta;
 import org.apache.commons.lang3.tuple.Pair;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.onlab.graph.ScalarWeight;
+import org.onlab.osgi.DefaultServiceDirectory;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.ChannelSpacing;
@@ -51,6 +53,7 @@ import org.onosproject.store.service.AtomicCounter;
 import org.onosproject.store.service.StorageService;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
@@ -66,6 +69,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -109,12 +115,23 @@ public class GnpyManager implements GnpyService {
     private AtomicCounter counter;
 
     private Map<IntentId, GnpyPowerInfo> intentsPowerMap = new HashMap<>();
+    private final IntentListener powerConfigurator = new InternalIntentListener();
+    private ExecutorService powerManagamentThreadPool;
 
     @Activate
     protected void activate() {
         log.info("Started");
         appId = coreService.getAppId(APP_ID);
         counter = storageService.getAtomicCounter("GNPy-connection-counter");
+        powerManagamentThreadPool = Executors.newFixedThreadPool(1,
+                new ThreadFactoryBuilder().setNameFormat("GNPy-power-target-%d").build());
+        DefaultServiceDirectory.getService(IntentService.class).addListener(powerConfigurator);
+    }
+
+    @Deactivate
+    protected void deactivate() {
+        powerManagamentThreadPool.shutdownNow();
+        log.info("Stopped");
     }
 
 
@@ -482,17 +499,19 @@ public class GnpyManager implements GnpyService {
 
         @Override
         public boolean isRelevant(IntentEvent event) {
-            return intentsPowerMap.keySet().contains(event.subject().id());
+            return event.type() == IntentEvent.Type.INSTALLED
+                    && intentsPowerMap.keySet().contains(event.subject().id());
         }
 
         @Override
         public void event(IntentEvent event) {
-            setPathPower(event.subject());
-
+            CompletableFuture.runAsync(() -> GnpyManager.this.setPathPower(event.subject()),
+                    GnpyManager.this.powerManagamentThreadPool);
         }
     }
 
     private void setPathPower(Intent intent) {
+        log.info("Configuring TX powers from GNPy for intent {}", intent);
         GnpyPowerInfo powerInfo = intentsPowerMap.get(intent.id());
         for (Link link : powerInfo.path()) {
             Device ingressDev = deviceService.getDevice(link.src().deviceId());
@@ -542,5 +561,6 @@ public class GnpyManager implements GnpyService {
                         .setTargetPower(powerInfo.ingress().port(), Direction.ALL, powerInfo.launchPower());
             }
         }
+        intentsPowerMap.remove(intent.id());
     }
 }
