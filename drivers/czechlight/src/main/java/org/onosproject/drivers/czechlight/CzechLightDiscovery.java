@@ -73,13 +73,13 @@ public class CzechLightDiscovery
     public static final Frequency END_CENTER_FREQ_50 = Frequency.ofGHz(196_100);
 
     private static final String MOD_ROADM_DEVICE = "czechlight-roadm-device";
-    private static final String MOD_ROADM_DEVICE_DATE = "2019-09-30";
+    private static final String MOD_ROADM_DEVICE_DATE = "2021-03-05";
     private static final String MOD_ROADM_FEATURE_LINE_DEGREE = "hw-line-9";
     private static final String MOD_ROADM_FEATURE_FLEX_ADD_DROP = "hw-add-drop-20";
     private static final String MOD_COHERENT_A_D = "czechlight-coherent-add-drop";
-    private static final String MOD_COHERENT_A_D_DATE = "2019-09-30";
+    private static final String MOD_COHERENT_A_D_DATE = "2021-03-05";
     private static final String MOD_INLINE_AMP = "czechlight-inline-amp";
-    private static final String MOD_INLINE_AMP_DATE = "2019-09-30";
+    private static final String MOD_INLINE_AMP_DATE = "2021-03-05";
     private static final String NS_CZECHLIGHT_PREFIX = "http://czechlight.cesnet.cz/yang/";
     public static final String NS_CZECHLIGHT_ROADM_DEVICE = NS_CZECHLIGHT_PREFIX + MOD_ROADM_DEVICE;
     public static final String NS_CZECHLIGHT_COHERENT_A_D = NS_CZECHLIGHT_PREFIX + MOD_COHERENT_A_D;
