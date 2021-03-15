@@ -107,6 +107,11 @@ public class CzechLightDiscovery
                     "<drop>" + UNIDIR_CFG_SUBSTR + "</drop>" +
                     XML_MC_CLOSE;
 
+    private static final String IETF_SYSTEM = "ietf-system";
+    private static final String IETF_SYSTEM_XMLNS = "urn:ietf:params:xml:ns:yang:" + IETF_SYSTEM;
+    private static final String IETF_SYSTEM_STATE_OS_RELEASE_XPATH = "/" + IETF_SYSTEM + ":system-state/os-release";
+    private static final String IETF_SYSTEM_STATE_OS_RELEASE_KEY = "data." + IETF_SYSTEM + ".system-state.os-release";
+
     public static final String LINE_EXPRESS_PREFIX = "E";
 
     private static final String DESC_PORT_LINE_WEST = "Line West";
@@ -124,6 +129,13 @@ public class CzechLightDiscovery
             log.error("Cannot request NETCONF session for {}", data().deviceId());
             return null;
         }
+
+        // FIXME: initialize these
+        String vendor       = "CzechLight";
+        String hwVersion    = "n/a";
+        String swVersion    = "n/a";
+        String serialNumber = "n/a";
+        ChassisId chassisId = null;
 
         DefaultAnnotations.Builder annotations = DefaultAnnotations.builder();
         final var noDevice = new DefaultDeviceDescription(handler().data().deviceId().uri(), Device.Type.OTHER,
@@ -166,6 +178,9 @@ public class CzechLightDiscovery
                 isInlineAmp = true;
             }
 
+            data = doGetXPath(getNetconfSession(), IETF_SYSTEM, IETF_SYSTEM_XMLNS, IETF_SYSTEM_STATE_OS_RELEASE_XPATH);
+            swVersion = data.getString(IETF_SYSTEM_STATE_OS_RELEASE_KEY, "n/a");
+
             if (isLineDegree) {
                 log.info("Talking to a Line/Degree ROADM node");
                 annotations.set(DEVICE_TYPE_ANNOTATION, DeviceType.LINE_DEGREE.toString());
@@ -186,13 +201,6 @@ public class CzechLightDiscovery
             log.error("Cannot request ietf-yang-library data", e);
             return noDevice;
         }
-
-        // FIXME: initialize these
-        String vendor       = "CzechLight";
-        String hwVersion    = "n/a";
-        String swVersion    = "n/a";
-        String serialNumber = "n/a";
-        ChassisId chassisId = null;
 
         return new DefaultDeviceDescription(handler().data().deviceId().uri(), Device.Type.ROADM,
                 vendor, hwVersion, swVersion, serialNumber, chassisId, annotations.build());
