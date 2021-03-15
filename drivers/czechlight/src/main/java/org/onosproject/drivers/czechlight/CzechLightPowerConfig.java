@@ -16,21 +16,31 @@
 
 package org.onosproject.drivers.czechlight;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.google.common.collect.Range;
 import org.apache.commons.configuration.HierarchicalConfiguration;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.onlab.packet.IpAddress;
+import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.OchSignal;
 import org.onosproject.net.behaviour.PowerConfig;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.driver.AbstractHandlerBehaviour;
 
-import java.util.Arrays;
-import java.util.Optional;
+import java.io.IOException;
+import java.util.*;
 
 import org.onosproject.netconf.DatastoreId;
 import org.onosproject.netconf.NetconfController;
 import org.onosproject.netconf.NetconfException;
 import org.onosproject.netconf.NetconfSession;
+import org.onosproject.protocol.http.ctl.HttpSBControllerImpl;
+import javax.ws.rs.sse.InboundSseEvent;
+
+import org.onosproject.protocol.rest.DefaultRestSBDevice;
 import org.slf4j.Logger;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -41,6 +51,12 @@ public class CzechLightPowerConfig<T> extends AbstractHandlerBehaviour
 
     private final Logger log = getLogger(getClass());
 
+    private enum MeasurementDirection {
+        Input,
+        Output,
+    };
+    private Map<DeviceId, Map<ImmutablePair<PortNumber, MeasurementDirection>, Double>> telemetryData = new HashMap();
+    private HttpSBControllerImpl httpController = new HttpSBControllerImpl();
 
     @Override
     public Optional<Double> getTargetPower(PortNumber port, T component) {
@@ -144,6 +160,7 @@ public class CzechLightPowerConfig<T> extends AbstractHandlerBehaviour
             log.debug("per-MC power not implemented yet");
             return Optional.empty();
         }
+        getPowerFromTelemetry(port, MeasurementDirection.Input); // FIXME
         switch (deviceType()) {
             case LINE_DEGREE:
             case ADD_DROP_FLEX:
@@ -279,6 +296,49 @@ public class CzechLightPowerConfig<T> extends AbstractHandlerBehaviour
             throw new IllegalStateException(new NetconfException("Failed to edit configuration.", e));
         }
     }
+
+    private Optional<Double> getPowerFromTelemetry(final PortNumber number, final MeasurementDirection direction) {
+        // Map<DeviceId, Map<Pair<PortNumber,MeasurementDirection>, Double>> telemetryData;
+        if (!telemetryData.containsKey(data().deviceId())) {
+            if (httpController.getDevice(data().deviceId()) != null) {
+                log.warn("No telemetry data yet for {}", data().deviceId());
+                return Optional.empty();
+            }
+            final var netconfHostPort = data().deviceId().uri().getSchemeSpecificPart();
+            final var addr = IpAddress.valueOf(netconfHostPort.split(":")[0]);
+            final var dev = new DefaultRestSBDevice(addr, 80,
+                    "", "", "http", null, true);
+            httpController.addDevice(dev);
+            httpController.getServerSentEvents(dev.deviceId(), "/telemetry/optics",
+                    (event) -> sendEvent(event, data().deviceId(), dev.deviceId()),
+                    (error) -> log.error("Unable to handle SSE from {} ({}). {}", dev, data().deviceId(), error));
+            return Optional.empty();
+        }
+        final var perDevice = telemetryData.get(data().deviceId());
+        final var key = new ImmutablePair(number, direction);
+        if (!perDevice.containsKey(key)) {
+            log.error("No telemetry data for {} {} {}", data().deviceId(), number, direction);
+            return Optional.empty();
+        }
+        return Optional.of(perDevice.get(key));
+    };
+
+    protected void sendEvent(InboundSseEvent sseEvent, DeviceId netconfDev, DeviceId restconfDev) {
+        final var data = sseEvent.readData();
+        ObjectMapper om = new ObjectMapper();
+        final ObjectReader reader = om.reader();
+        JsonNode jsonNode;
+        try {
+            jsonNode = reader.readTree(sseEvent.readData());
+            if (jsonNode == null) {
+                log.error("Got null JsonNode in streaming telemetry {} {}", netconfDev, restconfDev);
+                return;
+            }
+            log.info("Telemetry {} {}: {}", netconfDev, restconfDev, jsonNode);
+        } catch (IOException e) {
+            log.error("Exception while processing streaming telemetry", e);
+        }
+    };
 
     private NetconfSession getNetconfSession() {
         NetconfController controller =
