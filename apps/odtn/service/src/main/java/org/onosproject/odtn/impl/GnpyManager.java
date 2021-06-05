@@ -261,7 +261,7 @@ public class GnpyManager implements GnpyService {
                     List<JsonNode> reversedElementsList = StreamSupport
                             .stream(reversedIterable.spliterator(), false)
                             .collect(Collectors.toList());
-                    for (int i = 0; i < elementsList.size() - 1; i++) {
+                    for (int i = 0; i < elementsList.size(); i++) {
                         if (elementsList.get(i).get("path-route-object").has("num-unnum-hop")) {
                             String elementId = elementsList.get(i).get("path-route-object")
                                     .get("num-unnum-hop").get("node-id")
@@ -273,17 +273,17 @@ public class GnpyManager implements GnpyService {
                                 if (!elementsList.get(i).get("path-route-object")
                                         .get("num-unnum-hop").get("gnpy-node-type")
                                         .asText().equals("transceiver")) {
-                                    power = getPerHopPower(elementsList.get(i + 2));
+                                    power = getPerHopPower(elementsList.get(i));
                                 }
                                 deviceAtoBPowerMap.put(DeviceId.deviceId(elementId), power);
-                                for (int j = 0; j < reversedElementsList.size() - 1; j++) {
+                                for (int j = 0; j < reversedElementsList.size(); j++) {
                                     if (reversedElementsList.get(j).get("path-route-object").has("num-unnum-hop")) {
                                         String reversedElementId = reversedElementsList.get(j).get("path-route-object")
                                                 .get("num-unnum-hop").get("node-id")
                                                 .asText();
                                         double reversePower = -99;
                                         if (reversedElementId.equals(elementId)) {
-                                            reversePower = getPerHopPower(reversedElementsList.get(j + 2));
+                                            reversePower = getPerHopPower(reversedElementsList.get(j));
                                             deviceBtoAPowerMap.put(DeviceId.deviceId(elementId), reversePower);
                                         }
                                     }
@@ -360,9 +360,9 @@ public class GnpyManager implements GnpyService {
 
     protected double getPerHopPower(JsonNode pathRouteObj) {
         double power = -99;
-        if (pathRouteObj.get("path-route-object").has("target-channel-power")) {
-            power = pathRouteObj.get("path-route-object")
-                    .get("target-channel-power").get("value")
+        if (pathRouteObj.get("path-route-object").get("num-unnum-hop").has("target-channel-power")) {
+            power = pathRouteObj.get("path-route-object").get("num-unnum-hop")
+                    .get("target-channel-power")
                     .asDouble();
         }
         return power;
