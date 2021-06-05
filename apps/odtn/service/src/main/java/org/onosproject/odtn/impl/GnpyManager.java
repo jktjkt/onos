@@ -250,7 +250,7 @@ public class GnpyManager implements GnpyService {
                 JsonNode path = paths.next();
                 if (path.get("response-id").asText().equals(name)) {
                     Iterator<JsonNode> elements = path.get("path-properties")
-                            .get("reversed-path-route-objects").elements();
+                            .get("path-route-objects").elements();
                     Iterable<JsonNode> iterable = () -> elements;
                     List<JsonNode> elementsList = StreamSupport
                             .stream(iterable.spliterator(), false)
@@ -515,51 +515,58 @@ public class GnpyManager implements GnpyService {
         log.info("Configuring TX powers from GNPy for intent {}", intent);
         GnpyPowerInfo powerInfo = intentsPowerMap.get(intent.id());
         for (Link link : powerInfo.path()) {
-            Device ingressDev = deviceService.getDevice(link.src().deviceId());
-            if (ingressDev.is(PowerConfig.class)) {
+            Device deviceAZ = deviceService.getDevice(link.src().deviceId());
+            if (deviceAZ.is(PowerConfig.class)) {
                 if (powerInfo.deviceAtoBPowerMap().get(link.src().deviceId()) != -99) {
-                    log.info("Configuring power {} for {}",
-                             powerInfo.deviceAtoBPowerMap().get(link.src().deviceId()),
-                             link.src().deviceId());
-                    ingressDev.as(PowerConfig.class)
+                    log.info("Configuring power for {} port {} (direction A->Z): {}",
+                             link.src().deviceId(),
+                             link.src().port(),
+                             powerInfo.deviceAtoBPowerMap().get(link.src().deviceId())
+                             );
+                    deviceAZ.as(PowerConfig.class)
                             .setTargetPower(link.src().port(), powerInfo.ochSignal(),
                                             powerInfo.deviceAtoBPowerMap()
                                                     .get(link.src().deviceId()));
                 } else {
-                    log.warn("Can't determine power for {}", link.src().deviceId());
+                    log.warn("No power given for {} (direction A->Z)", link.src().deviceId());
                 }
             }
-            Device egressDev = deviceService.getDevice(link.dst().deviceId());
-            if (egressDev.is(PowerConfig.class)) {
+            Device deviceZA = deviceService.getDevice(link.dst().deviceId());
+            if (deviceZA.is(PowerConfig.class)) {
                 if (powerInfo.deviceBtoAPowerMap().get(link.dst().deviceId()) != -99) {
-                    log.info("Configuring power {} for {}",
-                             powerInfo.deviceBtoAPowerMap().get(link.dst().deviceId()),
-                             link.dst().deviceId());
-                    egressDev.as(PowerConfig.class)
+                    log.info("Configuring power for {} port {} (direction Z->A): {}",
+                             link.dst().deviceId(),
+                             link.dst().port(),
+                             powerInfo.deviceBtoAPowerMap().get(link.dst().deviceId()));
+                    deviceZA.as(PowerConfig.class)
                             .setTargetPower(link.dst().port(), powerInfo.ochSignal(),
                                             powerInfo.deviceBtoAPowerMap()
                                                     .get(link.dst().deviceId()));
                 } else {
-                    log.warn("Can't determine power for {}", link.dst().deviceId());
+                    log.warn("No power given for {} (direction Z->A)", link.dst().deviceId());
                 }
             }
         }
-        Device ingressDevice = deviceService.getDevice(powerInfo.ingress().deviceId());
-        if (ingressDevice.is(PowerConfig.class)) {
+        Device terminalA = deviceService.getDevice(powerInfo.ingress().deviceId());
+        if (terminalA.is(PowerConfig.class)) {
             if (powerInfo.launchPower() != -99) {
-                log.info("Configuring ingress with power {} for {}",
-                         powerInfo.launchPower(), ingressDevice);
-                ingressDevice.as(PowerConfig.class)
+                log.info("Configuring launch power (A-end) for {}: {}",
+                        terminalA, powerInfo.launchPower());
+                terminalA.as(PowerConfig.class)
                         .setTargetPower(powerInfo.ingress().port(), Direction.ALL, powerInfo.launchPower());
+            } else {
+                log.warn("No launch power given for A-end");
             }
         }
-        Device egressDevice = deviceService.getDevice(powerInfo.ingress().deviceId());
-        if (egressDevice.is(PowerConfig.class)) {
+        Device terminalZ = deviceService.getDevice(powerInfo.ingress().deviceId());
+        if (terminalZ.is(PowerConfig.class)) {
             if (powerInfo.launchPower() != -99) {
-                log.info("Configuring egress with power {} for {}",
-                         powerInfo.launchPower(), ingressDevice);
-                ingressDevice.as(PowerConfig.class)
+                log.info("Configuring launch power (Z-end) for {}: {}",
+                         terminalZ, powerInfo.launchPower());
+                terminalZ.as(PowerConfig.class)
                         .setTargetPower(powerInfo.ingress().port(), Direction.ALL, powerInfo.launchPower());
+            } else {
+                log.warn("No launch power given for Z-end");
             }
         }
         intentsPowerMap.remove(intent.id());
