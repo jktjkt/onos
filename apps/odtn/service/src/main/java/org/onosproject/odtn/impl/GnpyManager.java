@@ -349,12 +349,13 @@ public class GnpyManager implements GnpyService {
             for (JsonNode node : elementsList) {
                 if (node.has("metric-type") &&
                         node.get("metric-type").asText().equals("reference_power")) {
-                    power = node.get("accumulative-value").asDouble();
+                    // convert from mW to dBm
+                    power = 10 * log10(node.get("accumulative-value").asDouble() * 1000);
                     break;
                 }
             }
         }
-        return 10 * log10(power * 1000);
+        return power;
     }
 
     protected double getPerHopPower(JsonNode pathRouteObj) {
